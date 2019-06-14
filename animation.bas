@@ -22,7 +22,6 @@ Call DéplaceImage(i) ' où i est le numéro de l'image (vaut 1 pour la premièr
 
 
 ' BARRE DE PROGRESSION
-
 ' Sur le même principe, on peut  faire une barre de progression originale.
 ' Ajoutez un formulaire, nommé « BarreProgression » qui contient l'image de votre choix:
 ' L'affichage du formulaire se fait avec:
