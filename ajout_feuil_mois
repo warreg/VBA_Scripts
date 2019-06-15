@@ -1,0 +1,11 @@
+Sub Ajout_Feuille()
+Dim Mois_en_Lettre As String
+Dim Mon_Mois As Long
+
+    For Mon_Mois = 2 To 12
+        Mois_en_Lettre = Format(DateSerial(2015, Mon_Mois, 1), "mmmm")
+        Sheets("Janvier").Copy After:=Sheets(Mon_Mois - 1)
+        ActiveSheet.Name = StrConv(Mois_en_Lettre, vbProperCase)
+    Next
+End Sub
+
