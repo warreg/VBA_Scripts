@@ -18,3 +18,9 @@ For Each match In matches
       Next subMatch
   End If
 Next match
+
+
+
+
+'Multiline=false
+'IgnoreCase=True
