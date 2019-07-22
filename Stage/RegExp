@@ -1,0 +1,20 @@
+Dim regex As Object, str As String
+Set regex = CreateObject("VBScript.RegExp")
+
+With regex
+  .Pattern = "123-([0-9]+)" 'Notice the () around the second sequence
+  .Global = True
+End With
+    
+str = "321-123-000-123-643-123-888-123"
+
+Set matches = regex.Execute(str)
+  
+For Each match In matches
+  Debug.Print match.Value 'Result: 123-000, 123-643, 123-888
+  If match.SubMatches.Count > 0 Then
+    For Each subMatch In Match.SubMatches
+      Debug.Print subMatch 'Result: 000, 643, 888
+      Next subMatch
+  End If
+Next match
