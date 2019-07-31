@@ -47,7 +47,7 @@ Function ConnexionSQL(query$, Log_li&, Log_col&)
    End If
    On Error GoTo Errconnex
    'Connexion a la base de donnees
-   cnx.Open '################################
+   cnx.Open
    'Attendre que la connexion soit etablie
    While (cnx.State = adStateConnecting)
       DoEvents
@@ -55,25 +55,27 @@ Function ConnexionSQL(query$, Log_li&, Log_col&)
    'Arret verification si erreur de connexion
    On Error GoTo 0
    ConnexionSQL = True
+   
    'Si la requete n'est pas executé on passe a la requete suivante
    On Error Resume Next 'On Error GoTo ErrHandle
    rst.Open query, cnx, adOpenForwardOnly
    
+   Dim contenu As Variant
+   contenu = rst.GetRows(2)
    'Ramener le curseur au début
-   'rst.MoveLast
+   
    rst.MoveFirst
    
-   
    Workbooks("DataExtract_V4.xlsm").Worksheets("Log").Cells(Log_li, Log_col).CopyFromRecordset rst
+   Workbooks("DataExtract_V4.xlsm").Worksheets("Log").Cells(Log_li, 3) = contenu(0, 1)
    
-   Debug.Print rst.Fields(1)
    
    Exit Function
    
    rst.Close
-   cnx.Close '##############################
+   cnx.Close
    
-'En cas d'erreur
+'En cas d'erreur dans les parametres de connexion
 Errconnex:
    MsgBox "Connexion impossible !" & Chr(10) & "Vérifier parametres de connexion", vbCritical, "Echec connexion"
    Exit Function
@@ -229,8 +231,11 @@ Sub SSO()
                req_amb_final = "SELECT  distinct Value01  COLLATE DATABASE_DEFAULT as Value01 from ( " & req_amb & " )res"
                
                
-               'Et on execute la requete complete
+               'Et on execute la requete sero complete
                Call ConnexionSQL(req_sero_final, lig, 4)
+               'On vide la  cellule (lig, 3) avant d'éxécuter la req_amb_final
+               .Worksheets("Log").Cells(lig, 3) = ""
+               'Et on éxécute la requete ambig complete
                Call ConnexionSQL(req_amb_final, lig, 5)
             
             'Si on a une seule base selectionnée
@@ -239,8 +244,11 @@ Sub SSO()
                req_sero_final = "SELECT  distinct Value01  COLLATE DATABASE_DEFAULT as Value01 from ( " & req_sero & " )res"
                req_amb_final = "SELECT  distinct Value01  COLLATE DATABASE_DEFAULT as Value01 from ( " & req_amb & " )res"
                
-               'Et on éxécute la requete complete
+               'Et on éxécute la requete sero  complete
                Call ConnexionSQL(req_sero_final, lig, 4)
+               'On vide la  cellule (lig, 3) avant d'éxécuter la req_amb_final
+               .Worksheets("Log").Cells(lig, 3) = ""
+               'Et on éxécute la requete ambig complete
                Call ConnexionSQL(req_amb_final, lig, 5)
 
             End If
@@ -250,101 +258,117 @@ Sub SSO()
             '----------------------------------------------
             'Si ambiguité est trouvé
             If .Worksheets("Log").Cells(lig, 5).Value <> "" Then
-               'On stocke le contenu de la cellule dans res_ambig
-               res_ambig = .Worksheets("Log").Cells(lig, 5).Value
                
                '-------------------------------------------
-               'Objet regex pour decouper la chaine d'amibiguité
-               Set regex1 = CreateObject("vbscript.regexp")
-               With regex1
-                 .Pattern = "^[a-zA-Z]{1,3}\d*\*((\d{1,2})\:?(([a-zA-Z]{2,5}\d*|\d+)))\s[a-zA-Z]{1,3}\d*\*((\d{1,2})\:?(([a-zA-Z]{2,5}\d*|\d+)))$"
-                 .Global = True
-               End With
-               Set matches = regex1.Execute(res_ambig)
-               For Each Match In matches
-                  al_inc1 = Match.SubMatches(0)          'al_inc1: allele inconnu = la chaine apres les ":" dans les cas ou on par exp XX1
-                  al_inc2 = Match.SubMatches(4)          'al_inc2: allele inconnu = la chaine apres les ":" dans les cas ou on par exp XX2
-                  two_digit1 = Match.SubMatches(1)       'two_digit1: les 2 1er chiffres de l'ambiguité1
-                  two_digit2 = Match.SubMatches(5)       'two_digit1: les 2 1er chiffres de l'ambiguité2
-                  ambig1 = Match.SubMatches(2)           'ambig1: 1er code ambiguité a rechercher dans la derniere selectionnée
-                  ambig2 = Match.SubMatches(6)           'ambig2: 2iem code ambiguité2 a rechercher dans la derniere selectionnée
-               Next Match
-               '-------------------------------------------
-               
-               '-------------------------------------------
-               'Objet regex pour vérifier si le code d'ambiguité  correspond bien a un vrai code d'ambiguité
-               Set regex2 = CreateObject("vbscript.regexp")
-               'pattern: commençant par un mot de 2 a 5 lettre et se terminant aussi par une lettre
-               regex2.Pattern = "^[a-zA-Z]{2,5}$"
-               '-------------------------------------------
-               
-               '-------------------------------------------
-               If regex2.test(ambig1) Then  'Si ambig 1 correspond a une vrai ambiguité d'apres le pattern
-                  Amb1 = ambig1
-                  'Recherche de la liste des amibiguités correspondant a Amb1
-                  req_list_amb1 = " SELECT [NmdpDef] FROM [" & DbSelect & "].[dbo].[NMDP_CODE_DETAIL] where [NmdpID] = '" & Amb1 & "' "
-                  Call ConnexionSQL(req_list_amb1, lig, 6)
-                  'On definit la liste des ambiguités 1
-                  list_ambig1 = .Worksheets("Log").Cells(lig, 6).Value
-                  'On definit  le 1er élément comme l'allele1
-                  spl_alle1 = Split(.Worksheets("Log").Cells(lig, 6).Value, "/")(0)
-                       
-                  '----------------------------------------
-                  'Si l'allele 1 trouvé n'est pas constitué que de deux digit
-                  If Len(spl_alle1) > 2 Then
-                     'Copie de l'allele1 dans Result
-                     .Worksheets("Result").Cells(li + 1, col + 2) = spl_alle1
-                  'Si non si c'est constitué que de deux digit
-                  Else
-                     'On concatene l'allele1(2 digit) avec la variable two_digit
-                     .Worksheets("Result").Cells(li + 1, col + 2) = two_digit1 & ":" & spl_alle1
-                  End If
-                  '----------------------------------------
-                  'Et dans tous les cas copie du code ambiguité concaténé avec la liste des amiguités correspondante dans Result
-                  .Worksheets("Result").Cells(li + 1, col + 4) = ambig1 & "#" & list_ambig1
-
-               Else  'Si le code d'ambiguité ne corresond pas un code NMDP
-                  With .Worksheets("Result")
-                     'Copie de al_inc1 dans Result
-                     .Cells(li + 1, col + 2) = al_inc1
-                     'Des tirets a la place de la liste des ambiguités  dans Result
-                     .Cells(li + 1, col + 4) = "-"
-                  End With
-               End If
-               '-------------------------------------------
-               
-               '-------------------------------------------
-               'Si ambig2 correspond a une vrai ambiguité d'apres le pattern
-               If regex2.test(ambig2) Then
-                  Amb2 = ambig2
-                  'Recherche de la liste des amibiguités correspondant a Amb2
-                  req_list_amb2 = " SELECT [NmdpDef] FROM [" & DbSelect & "].[dbo].[NMDP_CODE_DETAIL] where [NmdpID] = '" & Amb2 & "' "
-                  Call ConnexionSQL(req_list_amb2, lig + 1, 6)
-                  'On definit la liste des ambiguité 2
-                  list_ambig2 = .Worksheets("Log").Cells(lig + 1, 6).Value
-                  'On definit le premier élément comme l'allele2
-                  spl_alle2 = Split(.Worksheets("Log").Cells(lig + 1, 6).Value, "/")(0)
+               'Et si en (lig, 3) on a rien cad pas de doublon
+               If .Worksheets("Log").Cells(lig, 3).Value = "" Then
+                     
+                  'On stocke le contenu de la cellule dans res_ambig
+                  res_ambig = .Worksheets("Log").Cells(lig, 5).Value
                   
                   '----------------------------------------
-                  'Si l'allele2 trouvé n'est pas constitué que de deux digit
-                  If Len(spl_alle2) > 2 Then
-                     'Copie de l'allele2 dans Result
-                     .Worksheets("Result").Cells(li + 1, col + 3) = spl_alle2
-                  'Si non si c'est constitué que de deux digit
-                  Else
-                     'On concatene l'allele2(2 digit) avec la variable two_digit2
-                     .Worksheets("Result").Cells(li + 1, col + 3) = two_digit2 & ":" & spl_alle2
+                  'Objet regex pour decouper la chaine d'amibiguité
+                  Set regex1 = CreateObject("vbscript.regexp")
+                  With regex1
+                    .Pattern = "^[a-zA-Z]{1,3}\d*\*((\d{1,2})\:?(([a-zA-Z]{2,5}\d*|\d+)))\s[a-zA-Z]{1,3}\d*\*((\d{1,2})\:?(([a-zA-Z]{2,5}\d*|\d+)))$"
+                    .Global = True
+                  End With
+                  Set matches = regex1.Execute(res_ambig)
+                  For Each Match In matches
+                     al_inc1 = Match.SubMatches(0)          'al_inc1: allele inconnu = la chaine apres les ":" dans les cas ou on par exp XX1
+                     al_inc2 = Match.SubMatches(4)          'al_inc2: allele inconnu = la chaine apres les ":" dans les cas ou on par exp XX2
+                     two_digit1 = Match.SubMatches(1)       'two_digit1: les 2 1er chiffres de l'ambiguité1
+                     two_digit2 = Match.SubMatches(5)       'two_digit1: les 2 1er chiffres de l'ambiguité2
+                     ambig1 = Match.SubMatches(2)           'ambig1: 1er code ambiguité a rechercher dans la derniere selectionnée
+                     ambig2 = Match.SubMatches(6)           'ambig2: 2iem code ambiguité2 a rechercher dans la derniere selectionnée
+                  Next Match
+                  '----------------------------------------
+                  
+                  '----------------------------------------
+                  'Objet regex pour vérifier si le code d'ambiguité  correspond bien a un vrai code d'ambiguité
+                  Set regex2 = CreateObject("vbscript.regexp")
+                  'pattern: commençant par un mot de 2 a 5 lettre et se terminant aussi par une lettre
+                  regex2.Pattern = "^[a-zA-Z]{2,5}$"
+                  '----------------------------------------
+                  
+                  '----------------------------------------
+                  If regex2.test(ambig1) Then  'Si ambig 1 correspond a une vrai ambiguité d'apres le pattern
+                     Amb1 = ambig1
+                     'Recherche de la liste des amibiguités correspondant a Amb1
+                     req_list_amb1 = " SELECT [NmdpDef] FROM [" & DbSelect & "].[dbo].[NMDP_CODE_DETAIL] where [NmdpID] = '" & Amb1 & "' "
+                     Call ConnexionSQL(req_list_amb1, lig, 6)
+                     'On definit la liste des ambiguités 1
+                     list_ambig1 = .Worksheets("Log").Cells(lig, 6).Value
+                     'On definit  le 1er élément comme l'allele1
+                     spl_alle1 = Split(.Worksheets("Log").Cells(lig, 6).Value, "/")(0)
+                          
+                     '-------------------------------------
+                     'Si l'allele 1 trouvé n'est pas constitué que de deux digit
+                     If Len(spl_alle1) > 2 Then
+                        'Copie de l'allele1 dans Result
+                        .Worksheets("Result").Cells(li + 1, col + 2) = spl_alle1
+                     'Si non si c'est constitué que de deux digit
+                     Else
+                        'On concatene l'allele1(2 digit) avec la variable two_digit
+                        .Worksheets("Result").Cells(li + 1, col + 2) = two_digit1 & ":" & spl_alle1
+                     End If
+                     '-------------------------------------
+                     'Et dans tous les cas copie du code ambiguité concaténé avec la liste des amiguités correspondante dans Result
+                     .Worksheets("Result").Cells(li + 1, col + 4) = ambig1 & "#" & list_ambig1
+   
+                  Else  'Si le code d'ambiguité ne corresond pas un code NMDP
+                     With .Worksheets("Result")
+                        'Copie de al_inc1 dans Result
+                        .Cells(li + 1, col + 2) = al_inc1
+                        'Des tirets a la place de la liste des ambiguités  dans Result
+                        .Cells(li + 1, col + 4) = "-"
+                     End With
                   End If
                   '----------------------------------------
-                  'Et dans tous les cas copie du code ambiguité concaténé avec la liste des amiguités correspondante dans Result
-                  .Worksheets("Result").Cells(li + 1, col + 5) = ambig2 & "#" & list_ambig2
-
-               Else      'Si le code d'ambiguité ne corresond pas un code NMDP
-                   With .Worksheets("Result")
-                     'Copie de al_inc2 dans Result
-                     .Cells(li + 1, col + 3) = al_inc2
-                     'Des tirets a la place de la liste des ambiguités  dans Result
-                     .Cells(li + 1, col + 5) = "-"
+                  
+                  '----------------------------------------
+                  'Si ambig2 correspond a une vrai ambiguité d'apres le pattern
+                  If regex2.test(ambig2) Then
+                     Amb2 = ambig2
+                     'Recherche de la liste des amibiguités correspondant a Amb2
+                     req_list_amb2 = " SELECT [NmdpDef] FROM [" & DbSelect & "].[dbo].[NMDP_CODE_DETAIL] where [NmdpID] = '" & Amb2 & "' "
+                     Call ConnexionSQL(req_list_amb2, lig + 1, 6)
+                     'On definit la liste des ambiguité 2
+                     list_ambig2 = .Worksheets("Log").Cells(lig + 1, 6).Value
+                     'On definit le premier élément comme l'allele2
+                     spl_alle2 = Split(.Worksheets("Log").Cells(lig + 1, 6).Value, "/")(0)
+                     
+                     '-------------------------------------
+                     'Si l'allele2 trouvé n'est pas constitué que de deux digit
+                     If Len(spl_alle2) > 2 Then
+                        'Copie de l'allele2 dans Result
+                        .Worksheets("Result").Cells(li + 1, col + 3) = spl_alle2
+                     'Si non si c'est constitué que de deux digit
+                     Else
+                        'On concatene l'allele2(2 digit) avec la variable two_digit2
+                        .Worksheets("Result").Cells(li + 1, col + 3) = two_digit2 & ":" & spl_alle2
+                     End If
+                     '-------------------------------------
+                     'Et dans tous les cas copie du code ambiguité concaténé avec la liste des amiguités correspondante dans Result
+                     .Worksheets("Result").Cells(li + 1, col + 5) = ambig2 & "#" & list_ambig2
+   
+                  Else      'Si le code d'ambiguité ne corresond pas un code NMDP
+                      With .Worksheets("Result")
+                        'Copie de al_inc2 dans Result
+                        .Cells(li + 1, col + 3) = al_inc2
+                        'Des tirets a la place de la liste des ambiguités  dans Result
+                        .Cells(li + 1, col + 5) = "-"
+                     End With
+                  End If
+                  '----------------------------------------
+               
+               Else
+                  'On remplit avec des étoiles si on a un doublon (qd (lig, 3) n'est pas vide )
+                  With .Worksheets("Result")
+                     .Cells(li + 1, col + 2) = "*"
+                     .Cells(li + 1, col + 3) = "*"
+                     .Cells(li + 1, col + 4) = "*"
+                     .Cells(li + 1, col + 5) = "*"
                   End With
                End If
                '-------------------------------------------
@@ -425,7 +449,7 @@ Sub SSO()
    Unload ProgressIndicator
    Set ProgressIndicator = Nothing
    Duree = Timer - Temps_deb
-   Workbooks("DataExtract_V4.xlsm").Worksheets("Log").Cells(1, 3) = Duree
+   Debug.Print "Temps d'execution : " & Duree
    '***
    
 End Sub
