@@ -1,5 +1,5 @@
 Dim ProgressIndicator As USFBarProgress
-Public Locus$, SampID$, num_li& 'Pour affichage barre de progression
+Public Locus$, SampID$, num_li&, last_db$ 'Pour affichage barre de progression
 
 
 '=========================================
@@ -168,7 +168,8 @@ Sub SSO()
       Call ConnexionSQL(req_last_bd_final, lig, 2)
       'DbSelect: la base la plus récente des bases selectionnées
       DbSelect = .Worksheets("Log").Cells(1, 2).Value
-   
+      
+      last_db = "" & DbSelect
    
       '----------------------------------------------------
       'Pour chaque identifiant collé dans "Donnes Entree"
@@ -205,11 +206,11 @@ Sub SSO()
             '----------------------------------------------
             'Si plusieurs bases sont selectionnées
             If UBound(BdTab) > 1 Then
-            
+               
+               
                '-------------------------------------------
                'On fait un UNON ALL avec le reste a partir de chaque deuxieme base
                For li_bd = 2 To UBound(BdTab)
-               
                
                   req_sero = req_sero & " UNION ALL " & _
                              "SELECT Value01  COLLATE DATABASE_DEFAULT as Value01 FROM [" & BdTab(li_bd) & _
@@ -464,8 +465,9 @@ Sub UpdateProgress(prog)
       .LabelProgress.Caption = "Traitement..  " & CInt(prog * 100) & " %"
       .LabelID.Caption = "[" & num_li & "]" & " Sample ID : " & SampID
       .LabelLocus.Caption = "Locus : " & Locus
+      .LabelBDD.Caption = "Last DB : " & last_db
       If CInt(prog * 100) > 99 Then .LabelProgress.Caption = "Terminé !"
-      .ImgProgress.Width = prog * 332
+      .ImgProgress.Width = prog * 288
    End With
    DoEvents
 End Sub
